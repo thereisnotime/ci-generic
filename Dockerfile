@@ -41,6 +41,8 @@ ARG GOSEC_VERSION
 ARG GOVULNCHECK_VERSION
 ARG MARKDOWNLINT_VERSION
 ARG OPENSPEC_VERSION
+ARG SHELLCHECK_VERSION
+ARG PYFLAKES_VERSION
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -144,7 +146,7 @@ ENV ASDF_DATA_DIR=/home/${USER}/.asdf
 # the runner's home and put its bin first, so a repo installing its own pinned
 # version shadows whatever is baked in.
 ENV NPM_CONFIG_PREFIX=/home/${USER}/.npm-global
-ENV PATH=/home/${USER}/.asdf/shims:/home/${USER}/.npm-global/bin:/usr/local/go/bin:/usr/local/bin:$PATH
+ENV PATH=/home/${USER}/.asdf/shims:/home/${USER}/.npm-global/bin:/home/${USER}/.local/bin:/usr/local/go/bin:/usr/local/bin:$PATH
 ENV GOPATH=/home/${USER}/go
 ENV GOTOOLCHAIN=local
 
@@ -179,7 +181,7 @@ RUN set -eux; \
 # image. gosec and govulncheck have no plugin and are `go install`; markdownlint
 # and openspec are npm and went in above as root.
 RUN set -eux; \
-    for p in golangci-lint actionlint goreleaser trivy hadolint yamllint; do \
+    for p in golangci-lint actionlint goreleaser trivy hadolint yamllint shellcheck; do \
       asdf plugin add "$p"; \
     done; \
     asdf install golangci-lint "${GOLANGCI_LINT_VERSION}"; \
@@ -188,18 +190,28 @@ RUN set -eux; \
     asdf install trivy         "${TRIVY_VERSION}"; \
     asdf install hadolint      "${HADOLINT_VERSION}"; \
     asdf install yamllint      "${YAMLLINT_VERSION}"; \
+    asdf install shellcheck    "${SHELLCHECK_VERSION}"; \
     asdf set -u golangci-lint "${GOLANGCI_LINT_VERSION}"; \
     asdf set -u actionlint    "${ACTIONLINT_VERSION}"; \
     asdf set -u goreleaser    "${GORELEASER_VERSION}"; \
     asdf set -u trivy         "${TRIVY_VERSION}"; \
     asdf set -u hadolint      "${HADOLINT_VERSION}"; \
     asdf set -u yamllint      "${YAMLLINT_VERSION}"; \
+    asdf set -u shellcheck    "${SHELLCHECK_VERSION}"; \
     asdf reshim
 
 # markdownlint and openspec have no asdf plugin, so npm is the packaging they
 # ship in. Installed as the runner user into NPM_CONFIG_PREFIX, which is why
 # this is here rather than before the USER switch: a root install would leave
 # root-owned files in the runner's home.
+# actionlint uses pyflakes for `run:` blocks with shell: python. --break-system-
+# packages because noble marks the system python externally-managed; this is a
+# purpose-built image, not a general-purpose desktop. Running as the runner user
+# puts the entry point in ~/.local/bin, which is on PATH above - a pip install
+# in a workflow lands in the same place and works without sudo.
+RUN pip3 install --no-cache-dir --break-system-packages \
+      "pyflakes==${PYFLAKES_VERSION}"
+
 RUN npm install -g --no-fund --no-audit \
       "markdownlint-cli@${MARKDOWNLINT_VERSION}" \
       "@fission-ai/openspec@${OPENSPEC_VERSION}" \

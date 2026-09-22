@@ -30,6 +30,8 @@ TOOLS = [
     ("GOVULNCHECK_VERSION", "govulncheck", "go install"),
     ("MARKDOWNLINT_VERSION", "markdownlint-cli", "npm"),
     ("OPENSPEC_VERSION", "@fission-ai/openspec", "npm"),
+    ("SHELLCHECK_VERSION", "shellcheck", "asdf"),
+    ("PYFLAKES_VERSION", "pyflakes", "pip"),
 ]
 
 
