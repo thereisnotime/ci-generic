@@ -21,45 +21,39 @@ ARG USER_UID=1001
 # GitHub stops queuing jobs to a runner roughly 30 days after a newer release
 # ships, and ARC registers with DisableUpdate=true, so this never self-updates.
 # The renovate annotations are what keep the image inside that window.
-# renovate: datasource=github-releases depName=actions/runner
-ARG RUNNER_VERSION=2.337.0
-# renovate: datasource=github-releases depName=golang/go extractVersion=^go(?<version>.*)$
-ARG GO_VERSION=1.27.1
-# renovate: datasource=node-version depName=node
-ARG NODE_VERSION=24.21.0
-# renovate: datasource=github-releases depName=hashicorp/terraform extractVersion=^v(?<version>.*)$
-ARG TERRAFORM_VERSION=1.16.3
-# renovate: datasource=github-releases depName=opentofu/opentofu extractVersion=^v(?<version>.*)$
-ARG OPENTOFU_VERSION=1.12.6
-# renovate: datasource=github-releases depName=openbao/openbao extractVersion=^v(?<version>.*)$
-ARG OPENBAO_VERSION=2.6.2
-# renovate: datasource=github-releases depName=asdf-vm/asdf extractVersion=^v(?<version>.*)$
-ARG ASDF_VERSION=0.20.2
+ARG RUNNER_VERSION
+ARG GO_VERSION
+ARG NODE_VERSION
+ARG TERRAFORM_VERSION
+ARG OPENTOFU_VERSION
+ARG OPENBAO_VERSION
+ARG ASDF_VERSION
 
 # CI gates. Versions match tix's Containerfile.ci so that `just lint` gives the
 # same answer locally (in its pinned toolbox) and here.
-# renovate: datasource=github-releases depName=golangci/golangci-lint extractVersion=^v(?<version>.*)$
-ARG GOLANGCI_LINT_VERSION=2.13.2
-# renovate: datasource=github-releases depName=rhysd/actionlint extractVersion=^v(?<version>.*)$
-ARG ACTIONLINT_VERSION=1.7.12
-# renovate: datasource=github-releases depName=goreleaser/goreleaser extractVersion=^v(?<version>.*)$
-ARG GORELEASER_VERSION=2.18.2
-# renovate: datasource=github-releases depName=aquasecurity/trivy extractVersion=^v(?<version>.*)$
-ARG TRIVY_VERSION=0.74.0
-# renovate: datasource=github-releases depName=hadolint/hadolint extractVersion=^v(?<version>.*)$
-ARG HADOLINT_VERSION=2.15.1
-# renovate: datasource=pypi depName=yamllint
-ARG YAMLLINT_VERSION=1.38.0
-# renovate: datasource=github-releases depName=securego/gosec extractVersion=^v(?<version>.*)$
-ARG GOSEC_VERSION=2.29.0
-# renovate: datasource=go depName=golang.org/x/vuln extractVersion=^v(?<version>.*)$
-ARG GOVULNCHECK_VERSION=1.8.0
-# renovate: datasource=npm depName=markdownlint-cli
-ARG MARKDOWNLINT_VERSION=0.49.1
-# renovate: datasource=npm depName=@fission-ai/openspec
-ARG OPENSPEC_VERSION=1.13.1
+ARG GOLANGCI_LINT_VERSION
+ARG ACTIONLINT_VERSION
+ARG GORELEASER_VERSION
+ARG TRIVY_VERSION
+ARG HADOLINT_VERSION
+ARG YAMLLINT_VERSION
+ARG GOSEC_VERSION
+ARG GOVULNCHECK_VERSION
+ARG MARKDOWNLINT_VERSION
+ARG OPENSPEC_VERSION
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# The ARGs above have no defaults so that a stale value can never be baked in
+# silently. Fail here with a clear message rather than 40 layers later on a
+# download URL with an empty version in it.
+RUN for v in RUNNER_VERSION GO_VERSION NODE_VERSION TERRAFORM_VERSION \
+             OPENTOFU_VERSION OPENBAO_VERSION ASDF_VERSION; do \
+      if [ -z "${!v:-}" ]; then \
+        echo "build-arg $v is not set - use ./build.sh, which reads versions.env" >&2; \
+        exit 1; \
+      fi; \
+    done
 
 # libicu74 is required by the runner's .NET host. The alternative,
 # DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1, breaks culture-aware actions.

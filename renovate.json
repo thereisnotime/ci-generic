@@ -1,13 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "enabledManagers": ["dockerfile", "custom.regex", "github-actions"],
+  "enabledManagers": ["dockerfile", "github-actions", "custom.regex"],
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^Dockerfile$/"],
+      "description": "versions.env is the single source of truth for everything pinned in the image",
+      "managerFilePatterns": ["/^versions\\.env$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s+ARG \\w+?_VERSION=(?<currentValue>.+?)\\s"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s+\\w+?_VERSION=(?<currentValue>.+?)\\s"
       ]
     }
   ]
