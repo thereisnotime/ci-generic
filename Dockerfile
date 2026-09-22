@@ -139,16 +139,14 @@ RUN set -eux; \
 # asdf shims come first on PATH: a repo with a .tool-versions should get the
 # version it asks for, not the one baked into the image.
 ENV ASDF_DATA_DIR=/home/${USER}/.asdf
-ENV PATH=/home/${USER}/.asdf/shims:/usr/local/go/bin:/usr/local/bin:$PATH
+# npm's default prefix is /usr/local, which the non-root runner cannot write to,
+# so a workflow doing `npm install -g` fails with EACCES. Point the prefix at
+# the runner's home and put its bin first, so a repo installing its own pinned
+# version shadows whatever is baked in.
+ENV NPM_CONFIG_PREFIX=/home/${USER}/.npm-global
+ENV PATH=/home/${USER}/.asdf/shims:/home/${USER}/.npm-global/bin:/usr/local/go/bin:/usr/local/bin:$PATH
 ENV GOPATH=/home/${USER}/go
 ENV GOTOOLCHAIN=local
-
-# npm globals go in as root because node lives in /usr/local. markdownlint and
-# openspec have no asdf plugin, so npm is the packaging they ship in.
-RUN npm install -g --no-fund --no-audit \
-      "markdownlint-cli@${MARKDOWNLINT_VERSION}" \
-      "@fission-ai/openspec@${OPENSPEC_VERSION}" \
-    && npm cache clean --force
 
 # ubuntu:24.04 ships an `ubuntu` user on uid 1001; take the uid over.
 RUN userdel -r "$(id -un ${USER_UID} 2>/dev/null || echo ubuntu)" 2>/dev/null || true; \
@@ -158,7 +156,9 @@ RUN userdel -r "$(id -un ${USER_UID} 2>/dev/null || echo ubuntu)" 2>/dev/null ||
     chmod 0440 /etc/sudoers.d/runner; \
     echo "Defaults env_keep += \"DEBIAN_FRONTEND\"" >> /etc/sudoers.d/runner; \
     mkdir -p /home/${USER}/go /home/${USER}/.asdf/shims \
-    && chown -R ${USER}:${USER} /home/${USER}/go /home/${USER}/.asdf
+                /home/${USER}/.npm-global/bin /home/${USER}/.npm \
+    && chown -R ${USER}:${USER} /home/${USER}/go /home/${USER}/.asdf \
+                /home/${USER}/.npm-global /home/${USER}/.npm
 
 USER ${USER}
 WORKDIR /home/${USER}
@@ -195,6 +195,15 @@ RUN set -eux; \
     asdf set -u hadolint      "${HADOLINT_VERSION}"; \
     asdf set -u yamllint      "${YAMLLINT_VERSION}"; \
     asdf reshim
+
+# markdownlint and openspec have no asdf plugin, so npm is the packaging they
+# ship in. Installed as the runner user into NPM_CONFIG_PREFIX, which is why
+# this is here rather than before the USER switch: a root install would leave
+# root-owned files in the runner's home.
+RUN npm install -g --no-fund --no-audit \
+      "markdownlint-cli@${MARKDOWNLINT_VERSION}" \
+      "@fission-ai/openspec@${OPENSPEC_VERSION}" \
+    && npm cache clean --force
 
 # Go-installed gates. GOFLAGS is cleared afterwards so a workflow's build is not
 # affected by anything set here.
