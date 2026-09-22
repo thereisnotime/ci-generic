@@ -36,6 +36,29 @@ ARG OPENBAO_VERSION=2.6.2
 # renovate: datasource=github-releases depName=asdf-vm/asdf extractVersion=^v(?<version>.*)$
 ARG ASDF_VERSION=0.20.2
 
+# CI gates. Versions match tix's Containerfile.ci so that `just lint` gives the
+# same answer locally (in its pinned toolbox) and here.
+# renovate: datasource=github-releases depName=golangci/golangci-lint extractVersion=^v(?<version>.*)$
+ARG GOLANGCI_LINT_VERSION=2.13.2
+# renovate: datasource=github-releases depName=rhysd/actionlint extractVersion=^v(?<version>.*)$
+ARG ACTIONLINT_VERSION=1.7.12
+# renovate: datasource=github-releases depName=goreleaser/goreleaser extractVersion=^v(?<version>.*)$
+ARG GORELEASER_VERSION=2.18.2
+# renovate: datasource=github-releases depName=aquasecurity/trivy extractVersion=^v(?<version>.*)$
+ARG TRIVY_VERSION=0.74.0
+# renovate: datasource=github-releases depName=hadolint/hadolint extractVersion=^v(?<version>.*)$
+ARG HADOLINT_VERSION=2.15.1
+# renovate: datasource=pypi depName=yamllint
+ARG YAMLLINT_VERSION=1.38.0
+# renovate: datasource=github-releases depName=securego/gosec extractVersion=^v(?<version>.*)$
+ARG GOSEC_VERSION=2.29.0
+# renovate: datasource=go depName=golang.org/x/vuln extractVersion=^v(?<version>.*)$
+ARG GOVULNCHECK_VERSION=1.8.0
+# renovate: datasource=npm depName=markdownlint-cli
+ARG MARKDOWNLINT_VERSION=0.49.1
+# renovate: datasource=npm depName=@fission-ai/openspec
+ARG OPENSPEC_VERSION=1.13.1
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # libicu74 is required by the runner's .NET host. The alternative,
@@ -126,6 +149,13 @@ ENV PATH=/home/${USER}/.asdf/shims:/usr/local/go/bin:/usr/local/bin:$PATH
 ENV GOPATH=/home/${USER}/go
 ENV GOTOOLCHAIN=local
 
+# npm globals go in as root because node lives in /usr/local. markdownlint and
+# openspec have no asdf plugin, so npm is the packaging they ship in.
+RUN npm install -g --no-fund --no-audit \
+      "markdownlint-cli@${MARKDOWNLINT_VERSION}" \
+      "@fission-ai/openspec@${OPENSPEC_VERSION}" \
+    && npm cache clean --force
+
 # ubuntu:24.04 ships an `ubuntu` user on uid 1001; take the uid over.
 RUN userdel -r "$(id -un ${USER_UID} 2>/dev/null || echo ubuntu)" 2>/dev/null || true; \
     useradd -m -s /bin/bash -u ${USER_UID} ${USER}; \
@@ -147,6 +177,42 @@ RUN set -eux; \
       "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"; \
     tar xzf ./runner.tar.gz; \
     rm runner.tar.gz
+
+# CI gates, installed as the runner user so the shims land in ASDF_DATA_DIR.
+#
+# asdf where a plugin exists: it is one mechanism for versioning, and a repo
+# that pins its own version in .tool-versions overrides these without a new
+# image. gosec and govulncheck have no plugin and are `go install`; markdownlint
+# and openspec are npm and went in above as root.
+RUN set -eux; \
+    for p in golangci-lint actionlint goreleaser trivy hadolint yamllint; do \
+      asdf plugin add "$p"; \
+    done; \
+    asdf install golangci-lint "${GOLANGCI_LINT_VERSION}"; \
+    asdf install actionlint    "${ACTIONLINT_VERSION}"; \
+    asdf install goreleaser    "${GORELEASER_VERSION}"; \
+    asdf install trivy         "${TRIVY_VERSION}"; \
+    asdf install hadolint      "${HADOLINT_VERSION}"; \
+    asdf install yamllint      "${YAMLLINT_VERSION}"; \
+    asdf set -u golangci-lint "${GOLANGCI_LINT_VERSION}"; \
+    asdf set -u actionlint    "${ACTIONLINT_VERSION}"; \
+    asdf set -u goreleaser    "${GORELEASER_VERSION}"; \
+    asdf set -u trivy         "${TRIVY_VERSION}"; \
+    asdf set -u hadolint      "${HADOLINT_VERSION}"; \
+    asdf set -u yamllint      "${YAMLLINT_VERSION}"; \
+    asdf reshim
+
+# Go-installed gates. GOFLAGS is cleared afterwards so a workflow's build is not
+# affected by anything set here.
+RUN set -eux; \
+    go install "github.com/securego/gosec/v2/cmd/gosec@v${GOSEC_VERSION}"; \
+    go install "golang.org/x/vuln/cmd/govulncheck@v${GOVULNCHECK_VERSION}"; \
+    # go clean, not rm -rf: the module cache is written read-only, so rm fails
+    # with EACCES partway through and leaves the layer half-cleaned.
+    go clean -modcache; \
+    go clean -cache
+
+ENV PATH=${GOPATH}/bin:$PATH
 
 # The chart overrides this with /home/runner/run.sh; set so the image is also
 # usable standalone.

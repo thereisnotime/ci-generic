@@ -22,6 +22,28 @@ ghcr.io/thereisnotime/ci-generic:latest
 | OpenBao | 2.6.2 |
 | plus | build-essential, git, openssh-client, jq, curl, wget, zip/unzip, rsync, sudo |
 
+### CI gates
+
+| | Version | Installed via |
+|---|---|---|
+| golangci-lint | 2.13.2 | asdf |
+| actionlint | 1.7.12 | asdf |
+| goreleaser | 2.18.2 | asdf |
+| trivy | 0.74.0 | asdf |
+| hadolint | 2.15.1 | asdf |
+| yamllint | 1.38.0 | asdf |
+| gosec | 2.29.0 | go install |
+| govulncheck | 1.8.0 | go install |
+| markdownlint-cli | 0.49.1 | npm |
+| @fission-ai/openspec | 1.13.1 | npm |
+
+The six with asdf plugins are pinned through asdf, so a repo with its own
+`.tool-versions` overrides them without needing a new image. The other four have
+no plugin and come from their native packaging.
+
+None of these need a container to run - trivy's filesystem scanner,
+golangci-lint and the rest all operate on the checkout.
+
 `sudo` is NOPASSWD, so a workflow can install anything else it needs without
 waiting for a new image:
 
