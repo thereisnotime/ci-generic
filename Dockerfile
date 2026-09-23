@@ -65,12 +65,16 @@ RUN for v in RUNNER_VERSION GO_VERSION NODE_VERSION TERRAFORM_VERSION \
 # openssh-client is not optional either: without it git's SSH transport does not
 # exist, so `git clone git@github.com:` fails outright, and actions that shell
 # out to ssh-agent fail earlier still with `spawnSync ssh-agent ENOENT`.
+# gettext-base is for envsubst: cosign-installer and a number of release
+# workflows shell out to it, and its absence surfaces as a bare `envsubst:
+# command not found` deep inside an action rather than as a missing dependency.
 # sudo is NOPASSWD below so a workflow can install its own extras without
 # waiting for a new image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential \
       ca-certificates \
       curl \
+      gettext-base \
       git \
       gnupg \
       jq \
