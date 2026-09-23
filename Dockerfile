@@ -57,6 +57,26 @@ RUN for v in RUNNER_VERSION GO_VERSION NODE_VERSION TERRAFORM_VERSION \
       fi; \
     done
 
+# The cluster these runners live on is IPv4-only (Cilium enable-ipv6=false),
+# but the pods still get a link-local IPv6 address and the stack stays enabled,
+# while CoreDNS forwards external names upstream and returns AAAA records. So a
+# client doing happy-eyeballs picks the AAAA, connects, and gets ENETUNREACH.
+# It fails randomly rather than consistently, because which address a client
+# tries first depends on the client: apt, Playwright's browser download, Google
+# Fonts and wrangler have all hit it.
+#
+# Fixing it in the image rather than the cluster keeps the blast radius to CI:
+# disabling IPv6 in the pod needs an unsafe sysctl allowlisted on every node,
+# and suppressing AAAA in CoreDNS changes DNS for every workload on the cluster.
+#
+# Three resolvers need telling separately. gai.conf covers everything using
+# glibc's getaddrinfo (curl, git, python). apt does its own thing. Node ignores
+# gai.conf because 18+ defaults to dns-result-order=verbatim, which is why the
+# Node-based steps were the ones failing most.
+RUN printf 'precedence ::ffff:0:0/96 100\n' >> /etc/gai.conf \
+    && printf 'Acquire::ForceIPv4 "true";\n' > /etc/apt/apt.conf.d/99force-ipv4
+ENV NODE_OPTIONS=--dns-result-order=ipv4first
+
 # libicu74 is required by the runner's .NET host. The alternative,
 # DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1, breaks culture-aware actions.
 # tzdata is OS data rather than tooling: ubuntu's rootfs ships no
