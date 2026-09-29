@@ -43,6 +43,10 @@ ARG MARKDOWNLINT_VERSION
 ARG OPENSPEC_VERSION
 ARG SHELLCHECK_VERSION
 ARG PYFLAKES_VERSION
+ARG PROTOC_VERSION
+ARG PROTOC_GEN_GO_VERSION
+ARG PROTOC_GEN_GO_GRPC_VERSION
+ARG RUST_VERSION
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -50,7 +54,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # silently. Fail here with a clear message rather than 40 layers later on a
 # download URL with an empty version in it.
 RUN for v in RUNNER_VERSION GO_VERSION NODE_VERSION TERRAFORM_VERSION \
-             OPENTOFU_VERSION OPENBAO_VERSION ASDF_VERSION; do \
+             OPENTOFU_VERSION OPENBAO_VERSION ASDF_VERSION \
+             PROTOC_VERSION RUST_VERSION; do \
       if [ -z "${!v:-}" ]; then \
         echo "build-arg $v is not set - use ./build.sh, which reads versions.env" >&2; \
         exit 1; \
@@ -162,6 +167,39 @@ RUN set -eux; \
     install -m 0755 /tmp/asdf /usr/local/bin/asdf; \
     rm -f /tmp/asdf.tgz /tmp/asdf
 
+# protoc and the Rust toolchain, in their own layer on purpose. Bumping either
+# should not re-download Go, Node, terraform, tofu and bao, which is what
+# putting them in the layer above would cost.
+#
+# Rust goes in as the static tarball rather than via rustup: the version is
+# pinned in versions.env like everything else here, and rustup's job is managing
+# several toolchains, which a CI image does not want. The cost is no
+# `rustup target add`, so cross-compiling to another target needs a different
+# approach.
+#
+# protoc is what Rust's prost-build and tonic-build shell out to from build.rs,
+# so it serves both ecosystems. Only Go needs codegen plugins; Rust generates
+# through its own build script.
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in amd64) protoarch=x86_64; rustarch=x86_64;; arm64) protoarch=aarch_64; rustarch=aarch64;; *) echo "unsupported arch $arch" >&2; exit 1;; esac; \
+    curl -fsSL --retry 5 --retry-all-errors \
+      "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${protoarch}.zip" -o /tmp/protoc.zip; \
+    unzip -q -o /tmp/protoc.zip -d /tmp/protoc; \
+    install -m 0755 /tmp/protoc/bin/protoc /usr/local/bin/protoc; \
+    # The well-known .proto files ship with the release and protoc expects them
+    # on its include path; without them any import of timestamp.proto fails.
+    cp -r /tmp/protoc/include/google /usr/local/include/; \
+    rm -rf /tmp/protoc.zip /tmp/protoc; \
+    protoc --version; \
+    curl -fsSL --retry 5 --retry-all-errors \
+      "https://static.rust-lang.org/dist/rust-${RUST_VERSION}-${rustarch}-unknown-linux-gnu.tar.gz" -o /tmp/rust.tgz; \
+    mkdir -p /tmp/rust; \
+    tar -C /tmp/rust --strip-components=1 -xzf /tmp/rust.tgz; \
+    /tmp/rust/install.sh --prefix=/usr/local --components=rustc,cargo,rust-std-${rustarch}-unknown-linux-gnu --without=rust-docs >/dev/null; \
+    rm -rf /tmp/rust.tgz /tmp/rust; \
+    rustc --version; cargo --version
+
 # asdf shims come first on PATH: a repo with a .tool-versions should get the
 # version it asks for, not the one baked into the image.
 ENV ASDF_DATA_DIR=/home/${USER}/.asdf
@@ -246,6 +284,10 @@ RUN npm install -g --no-fund --no-audit \
 RUN set -eux; \
     go install "github.com/securego/gosec/v2/cmd/gosec@v${GOSEC_VERSION}"; \
     go install "golang.org/x/vuln/cmd/govulncheck@v${GOVULNCHECK_VERSION}"; \
+    # protoc only knows how to emit descriptors; the language plugins are
+    # separate binaries it execs by name from PATH.
+    go install "google.golang.org/protobuf/cmd/protoc-gen-go@v${PROTOC_GEN_GO_VERSION}"; \
+    go install "google.golang.org/grpc/cmd/protoc-gen-go-grpc@v${PROTOC_GEN_GO_GRPC_VERSION}"; \
     # go clean, not rm -rf: the module cache is written read-only, so rm fails
     # with EACCES partway through and leaves the layer half-cleaned.
     go clean -modcache; \

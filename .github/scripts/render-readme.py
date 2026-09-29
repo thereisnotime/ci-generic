@@ -32,6 +32,10 @@ TOOLS = [
     ("OPENSPEC_VERSION", "@fission-ai/openspec", "npm"),
     ("SHELLCHECK_VERSION", "shellcheck", "asdf"),
     ("PYFLAKES_VERSION", "pyflakes", "pip"),
+    ("PROTOC_VERSION", "protoc", "release zip"),
+    ("PROTOC_GEN_GO_VERSION", "protoc-gen-go", "go install"),
+    ("PROTOC_GEN_GO_GRPC_VERSION", "protoc-gen-go-grpc", "go install"),
+    ("RUST_VERSION", "Rust (rustc, cargo)", "tarball"),
 ]
 
 
