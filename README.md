@@ -16,7 +16,7 @@ ghcr.io/thereisnotime/ci-generic:latest
 
 **Compressed size:** 1.18GB (what each node downloads)
 
-**Current digest:** `sha256:9c552ca30e497bb775fe9f1d86888ee16c703c85ddb13adf8e3ffc5fab648981`
+**Current digest:** `sha256:271e08f4c1055747b2ba55e3c970a084e4fafe70492a5c53e3d8f3bb225a0c2d`
 
 | Tool | Version | Installed via |
 |---|---|---|
