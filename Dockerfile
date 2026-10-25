@@ -200,6 +200,32 @@ RUN set -eux; \
     rm -rf /tmp/rust.tgz /tmp/rust; \
     rustc --version; cargo --version
 
+# The shared libraries a headless browser links against, for any workflow that
+# runs Playwright.
+#
+# Resolved by Playwright rather than listed here. A hand-written list is right
+# the day it is written and quietly wrong after the next Playwright or Ubuntu
+# bump, with nothing to notice: noble renamed half of these in the 64-bit time
+# transition, so a list copied from a 22.04 recipe installs libglib2.0-0 and
+# libasound2, both of which resolve and neither of which is what Chromium now
+# needs. `install-deps` asks the version of Playwright that is pinned here and
+# installs exactly what it names, which on this base is 23 packages and 76
+# installs once apt has expanded them.
+#
+# This is a convenience, not a contract. A repo pinning a newer Playwright may
+# need a library this image has not got, so a workflow should still run
+# `playwright install --with-deps` unconditionally rather than only when its
+# browser cache misses. That exact mistake cost a deploy: the cache hit, the
+# apt step was skipped, and Chromium could not start for want of
+# libglib-2.0.so.0.
+#
+# Root, and before the USER switch below, because apt needs root and npx needs
+# the Node installed above.
+ARG PLAYWRIGHT_VERSION
+RUN npx -y "playwright-core@${PLAYWRIGHT_VERSION}" install-deps chromium \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm cache clean --force
+
 # asdf shims come first on PATH: a repo with a .tool-versions should get the
 # version it asks for, not the one baked into the image.
 ENV ASDF_DATA_DIR=/home/${USER}/.asdf
