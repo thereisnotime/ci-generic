@@ -35,7 +35,8 @@ TOOLS = [
     ("PROTOC_VERSION", "protoc", "release zip"),
     ("PROTOC_GEN_GO_VERSION", "protoc-gen-go", "go install"),
     ("PROTOC_GEN_GO_GRPC_VERSION", "protoc-gen-go-grpc", "go install"),
-    ("RUST_VERSION", "Rust (rustc, cargo)", "tarball"),
+    ("RUST_VERSION", "Rust (rustc, cargo, rustfmt, clippy)", "tarball"),
+    ("JUST_VERSION", "just", "asdf"),
 ]
 
 

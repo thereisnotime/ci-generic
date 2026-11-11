@@ -47,6 +47,7 @@ ARG PROTOC_VERSION
 ARG PROTOC_GEN_GO_VERSION
 ARG PROTOC_GEN_GO_GRPC_VERSION
 ARG RUST_VERSION
+ARG JUST_VERSION
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -55,7 +56,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # download URL with an empty version in it.
 RUN for v in RUNNER_VERSION GO_VERSION NODE_VERSION TERRAFORM_VERSION \
              OPENTOFU_VERSION OPENBAO_VERSION ASDF_VERSION \
-             PROTOC_VERSION RUST_VERSION; do \
+             PROTOC_VERSION RUST_VERSION JUST_VERSION; do \
       if [ -z "${!v:-}" ]; then \
         echo "build-arg $v is not set - use ./build.sh, which reads versions.env" >&2; \
         exit 1; \
@@ -196,9 +197,9 @@ RUN set -eux; \
       "https://static.rust-lang.org/dist/rust-${RUST_VERSION}-${rustarch}-unknown-linux-gnu.tar.gz" -o /tmp/rust.tgz; \
     mkdir -p /tmp/rust; \
     tar -C /tmp/rust --strip-components=1 -xzf /tmp/rust.tgz; \
-    /tmp/rust/install.sh --prefix=/usr/local --components=rustc,cargo,rust-std-${rustarch}-unknown-linux-gnu --without=rust-docs >/dev/null; \
+    /tmp/rust/install.sh --prefix=/usr/local --components=rustc,cargo,rust-std-${rustarch}-unknown-linux-gnu,rustfmt-preview,clippy-preview --without=rust-docs >/dev/null; \
     rm -rf /tmp/rust.tgz /tmp/rust; \
-    rustc --version; cargo --version
+    rustc --version; cargo --version; rustfmt --version; cargo clippy --version
 
 # The shared libraries a headless browser links against, for any workflow that
 # runs Playwright.
@@ -269,7 +270,7 @@ RUN set -eux; \
 # image. gosec and govulncheck have no plugin and are `go install`; markdownlint
 # and openspec are npm and went in above as root.
 RUN set -eux; \
-    for p in golangci-lint actionlint goreleaser trivy hadolint yamllint shellcheck; do \
+    for p in golangci-lint actionlint goreleaser trivy hadolint yamllint shellcheck just; do \
       asdf plugin add "$p"; \
     done; \
     asdf install golangci-lint "${GOLANGCI_LINT_VERSION}"; \
@@ -279,6 +280,7 @@ RUN set -eux; \
     asdf install hadolint      "${HADOLINT_VERSION}"; \
     asdf install yamllint      "${YAMLLINT_VERSION}"; \
     asdf install shellcheck    "${SHELLCHECK_VERSION}"; \
+    asdf install just          "${JUST_VERSION}"; \
     asdf set -u golangci-lint "${GOLANGCI_LINT_VERSION}"; \
     asdf set -u actionlint    "${ACTIONLINT_VERSION}"; \
     asdf set -u goreleaser    "${GORELEASER_VERSION}"; \
@@ -286,6 +288,7 @@ RUN set -eux; \
     asdf set -u hadolint      "${HADOLINT_VERSION}"; \
     asdf set -u yamllint      "${YAMLLINT_VERSION}"; \
     asdf set -u shellcheck    "${SHELLCHECK_VERSION}"; \
+    asdf set -u just          "${JUST_VERSION}"; \
     asdf reshim
 
 # markdownlint and openspec have no asdf plugin, so npm is the packaging they
